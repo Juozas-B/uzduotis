@@ -2,10 +2,47 @@
 #include <mosquitto.h>
 #include <cjson/cJSON.h>
 #include <time.h>
+#include <string.h>
+#include <stdlib.h>
+
+struct device{
+    char device_id[64]; // reik pridet patikrinima ar ne per ilgas gal?
+    double temperature;
+    double humidity;
+    int battery;
+    long timestamp;
+};
+
+struct device_list{
+    struct device *arr;
+    int count;
+    int capacity;
+};
+
+
+struct device *find_or_add_device(struct device_list *list, const char *device_id){
+    
+    for (int i = 0; i < list->count; i++){
+        if (strcmp(list->arr[i].device_id, device_id) == 0){
+            return &list->arr[i];
+        }
+    }
+
+    if (list->count == list->capacity){ //prapleciam
+        list->capacity = list->capacity == 0 ? 1 : list->capacity * 2;
+        list->arr = realloc(list->arr, list->capacity * sizeof(struct device)); // list->arr visada rodo i pirma
+    }
+
+    strcpy(list->arr[list->count].device_id, device_id);
+    return &list->arr[list->count++];
+}
+
+
 
 void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *message){
-    (void)userdata;
     (void)mosq;
+
+    struct device_list *list = userdata;
 
     cJSON *json = cJSON_Parse((char *)message->payload);
 
@@ -32,11 +69,20 @@ void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_m
         return;
     }
 
+    
     char *id = device_id->valuestring;
     double temp = temperature->valuedouble;
     double hum = humidity->valuedouble;
     int bat = battery->valueint;
     long ts = timestamp->valueint;
+
+    struct device *pridetas_device = find_or_add_device(list, id);
+
+    pridetas_device->temperature = temp;
+    pridetas_device->humidity = hum;
+    pridetas_device->battery = bat;
+    pridetas_device->timestamp = ts;
+
 
     struct tm *laikas = localtime(&ts);
 
@@ -49,9 +95,11 @@ void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_m
 
 
 int main(void){
+    struct device_list device_list = {0};
+
     mosquitto_lib_init();
 
-    struct mosquitto *mosq = mosquitto_new("iot_monitor", true, NULL);
+    struct mosquitto *mosq = mosquitto_new("iot_monitor", true, &device_list);
 
     mosquitto_connect(mosq, "localhost", 1883, 60);
 
