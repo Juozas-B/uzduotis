@@ -1,2 +1,5 @@
 .venv/
 *.pdf
+build/
+docs/
+iot_monitor
