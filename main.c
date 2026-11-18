@@ -145,11 +145,14 @@ void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_m
     //4.4
     struct tm *laikas = localtime(&ts);
 
-    log_line("[%02d:%02d:%02d] Device: %s\nTemperature: %.2f°C\nHumidity: %.2f%%\nBattery: %d%%\n\n", laikas->tm_hour, laikas->tm_min, laikas->tm_sec, id, temp, hum, bat);
-
-
-    //printf("Received message: %s\n", (char *)message->payload);
-    fflush(stdout);
+    log_line("[%02d:%02d:%02d] Device: %s\n"
+             "%-12s %.2f°C\n"
+             "%-12s %.2f%%\n"
+             "%-12s %d%%\n\n",
+             laikas->tm_hour, laikas->tm_min, laikas->tm_sec, id,
+             "Temperature:", temp,
+             "Humidity:", hum,
+             "Battery:", bat);
 }
 
 void on_connect(struct mosquitto *mosq, void *userdata, int rc){
@@ -167,7 +170,7 @@ void on_disconnect(struct mosquitto *mosq, void *userdata, int rc){
     (void)mosq;
     (void)userdata;
 
-    log_line("Disconnected: %s\n", mosquitto_strerror(rc));
+    log_line("\nDisconnected: %s\n", mosquitto_strerror(rc));
 }
 
 void on_subscribe(struct mosquitto *mosq, void *userdata, int mid, int qos_count, const int *granted_qos){
@@ -190,7 +193,7 @@ int main(int argc, char *argv[]){
     int port = 1883; 
     char *logfile = NULL;
     int opt;
-    while ((opt = getopt(argc, argv, "H:P:o:")) != -1) {
+    while ((opt = getopt(argc, argv, "H:P:o:h")) != -1) {
         switch (opt) {
             case 'H': host = optarg; break;
             case 'P': port = atoi(optarg); break;
