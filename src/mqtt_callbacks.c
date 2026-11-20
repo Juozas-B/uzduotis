@@ -171,6 +171,7 @@ void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_m
     pridetas_device->humidity = hum;
     pridetas_device->battery = bat;
     pridetas_device->timestamp = ts;
+    pridetas_device->last_received = time(NULL);
     pthread_mutex_unlock(&list->mutex);
 
     int alert_printed = 0;

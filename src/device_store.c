@@ -38,6 +38,8 @@ struct device *find_or_add_device(struct device_list *list, const char *device_i
 
 void print_device_summary(struct device_list *list)
 {
+    time_t now = time(NULL);
+
     if (pthread_mutex_lock(&list->mutex) != 0) {
         log_line("Failed to lock device list\n");
         return;
@@ -51,9 +53,15 @@ void print_device_summary(struct device_list *list)
 
     for (int i = 0; i < list->count; i++) {
         const struct device *device = &list->arr[i];
+        time_t elapsed = now - device->last_received;
 
-        log_line("%s | temperature: %.2f C | humidity: %.2f%% | battery: %d%%\n",
-                device->device_id, device->temperature, device->humidity,device->battery);
+        log_line("%s | temperature: %.2f C | humidity: %.2f%% | battery: %d%% | "
+                 "last message: %ld seconds ago\n",
+                 device->device_id,
+                 device->temperature,
+                 device->humidity,
+                 device->battery,
+                 (long)elapsed);
     }
 
     log_line("----------------------\n\n\n");

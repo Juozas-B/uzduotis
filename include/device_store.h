@@ -2,6 +2,7 @@
 #define DEVICE_STORE_H
 
 #include <pthread.h>
+#include <time.h>
 
 struct device {
     char device_id[64];
@@ -9,6 +10,7 @@ struct device {
     double humidity;
     int battery;
     long timestamp;
+    time_t last_received;
 };
 
 struct device_list {
