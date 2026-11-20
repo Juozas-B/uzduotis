@@ -99,7 +99,7 @@ void on_message(struct mosquitto *mosq, void *userdata,
     json = cJSON_ParseWithLengthOpts(message->payload, (size_t)message->payloadlen, NULL, 0);
 
     if (json == NULL) {
-        log_line("nera json\n");
+        log_line("Invalid JSON\n");
         return;
     }
 
@@ -110,14 +110,14 @@ void on_message(struct mosquitto *mosq, void *userdata,
     cJSON *timestamp = cJSON_GetObjectItem(json, "timestamp");
 
     if (!device_id || !temperature || !humidity || !battery || !timestamp) {
-        log_line("Truksta json dalies\n");
+        log_line("Missing required JSON fields\n");
         cJSON_Delete(json);
         return;
     }
 
     if (!cJSON_IsString(device_id) || !cJSON_IsNumber(temperature) ||
         !cJSON_IsNumber(humidity) || !cJSON_IsNumber(battery) || !cJSON_IsNumber(timestamp)) {
-        log_line("Blogas dalies formatas\n");
+        log_line("Invalid JSON field types\n");
         cJSON_Delete(json);
         return;
     }
@@ -205,14 +205,14 @@ void on_connect(struct mosquitto *mosq, void *userdata, int rc)
     if (rc == 0) {
         int subscribe_result;
 
-        log_line("Prisijungta prie MQTT brokerio\n");
+        log_line("Connected to MQTT broker\n");
         subscribe_result = mosquitto_subscribe(mosq, NULL, "iot/devices/+/telemetry", 0);
         if (subscribe_result != MOSQ_ERR_SUCCESS) {
             log_line("Subscription failed: %s\n", mosquitto_strerror(subscribe_result));
             running = 0;
         }
     } else {
-        log_line("Nepavyko prisijungti prie MQTT brokerio, klaidos kodas: %d\n", rc);
+        log_line("Failed to connect to MQTT broker, error code: %d\n", rc);
     }
 }
 

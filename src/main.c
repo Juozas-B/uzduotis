@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
             logfile = optarg;
             break;
         case 'h':
-            printf("Usage: %s -H host -P port -o logfile\n", argv[0]);
+            printf("Usage: %s [-H host] [-P port] [-o logfile]\n", argv[0]);
             printf("  -H  MQTT broker host (default: localhost)\n");
             printf("  -P  MQTT broker port (default: 1883)\n");
             printf("  -o  Log file (default: stdout)\n");
