@@ -1,4 +1,5 @@
 #include "device_store.h"
+#include "logger.h"
 
 #include <limits.h>
 #include <stdint.h>
@@ -33,4 +34,28 @@ struct device *find_or_add_device(struct device_list *list, const char *device_i
 
     strcpy(list->arr[list->count].device_id, device_id);
     return &list->arr[list->count++];
+}
+
+void print_device_summary(struct device_list *list)
+{
+    if (pthread_mutex_lock(&list->mutex) != 0) {
+        log_line("Failed to lock device list\n");
+        return;
+    }
+
+    log_line("\n--- Device summary ---\n");
+
+    if (list->count == 0) {
+        log_line("No devices have sent telemetry yet\n");
+    }
+
+    for (int i = 0; i < list->count; i++) {
+        const struct device *device = &list->arr[i];
+
+        log_line("%s | temperature: %.2f C | humidity: %.2f%% | battery: %d%%\n",
+                device->device_id, device->temperature, device->humidity,device->battery);
+    }
+
+    log_line("----------------------\n\n\n");
+    pthread_mutex_unlock(&list->mutex);
 }

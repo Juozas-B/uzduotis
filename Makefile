@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror -Iinclude
-LDFLAGS = -lmosquitto -lcjson -lm
+LDFLAGS = -lmosquitto -lcjson -lm -pthread
 SRC = $(wildcard src/*.c)
 TARGET = iot_monitor
 OBJ = $(SRC:%.c=build/%.o)

@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <mosquitto.h>
@@ -74,12 +75,19 @@ int main(int argc, char *argv[])
     }
 
     struct device_list device_list = {0};
+    if (pthread_mutex_init(&device_list.mutex, NULL) != 0) {
+        fprintf(stderr, "Failed to initialize device list mutex\n");
+        logger_close();
+        return 1;
+    }
+
     int mosquitto_result;
 
     signal(SIGINT, handle_sigint);
     mosquitto_result = mosquitto_lib_init();
     if (mosquitto_result != MOSQ_ERR_SUCCESS) {
         fprintf(stderr, "Failed to initialize Mosquitto: %s\n", mosquitto_strerror(mosquitto_result));
+        pthread_mutex_destroy(&device_list.mutex);
         logger_close();
         return 1;
     }
@@ -88,6 +96,7 @@ int main(int argc, char *argv[])
     if (mosq == NULL) {
         fprintf(stderr, "Failed to create Mosquitto client\n");
         mosquitto_lib_cleanup();
+        pthread_mutex_destroy(&device_list.mutex);
         logger_close();
         return 1;
     }
@@ -96,13 +105,16 @@ int main(int argc, char *argv[])
     mosquitto_connect_callback_set(mosq, on_connect);
     mosquitto_subscribe_callback_set(mosq, on_subscribe);
     mosquitto_result = mosquitto_reconnect_delay_set(mosq, 1, 10, true);
+
     if (mosquitto_result != MOSQ_ERR_SUCCESS) {
         fprintf(stderr, "Failed to configure reconnect: %s\n", mosquitto_strerror(mosquitto_result));
         mosquitto_destroy(mosq);
         mosquitto_lib_cleanup();
+        pthread_mutex_destroy(&device_list.mutex);
         logger_close();
         return 1;
     }
+
     mosquitto_message_callback_set(mosq, on_message);
     mosquitto_result = mosquitto_connect(mosq, host, port, 60);
     if (mosquitto_result != MOSQ_ERR_SUCCESS) {
@@ -115,12 +127,23 @@ int main(int argc, char *argv[])
         mosquitto_destroy(mosq);
         mosquitto_lib_cleanup();
         free(device_list.arr);
+        pthread_mutex_destroy(&device_list.mutex);
         logger_close();
         return 1;
     }
 
+    time_t last_summary = time(NULL);
+
     while (running) {
+        time_t now;
+
         sleep(1);
+        now = time(NULL);
+
+        if (now - last_summary >= 10) {
+            print_device_summary(&device_list);
+            last_summary = now;
+        }
     }
 
     mosquitto_loop_stop(mosq, true);
@@ -128,6 +151,7 @@ int main(int argc, char *argv[])
     mosquitto_destroy(mosq);
     mosquitto_lib_cleanup();
     free(device_list.arr);
+    pthread_mutex_destroy(&device_list.mutex);
     logger_close();
 
     return 0;

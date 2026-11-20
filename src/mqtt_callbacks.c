@@ -36,8 +36,7 @@ static int is_valid_device_id(const char *id)
     return 1;
 }
 
-static void publish_alert(struct mosquitto *mosq, const char *id,
-                          const char *alert_name, double value, long ts)
+static void publish_alert(struct mosquitto *mosq, const char *id, const char *alert_name, double value, long ts)
 {
     cJSON *alert = cJSON_CreateObject();
     char *alert_str;
@@ -54,6 +53,7 @@ static void publish_alert(struct mosquitto *mosq, const char *id,
         cJSON_AddStringToObject(alert, "alert", alert_name) == NULL ||
         cJSON_AddNumberToObject(alert, "value", value) == NULL ||
         cJSON_AddNumberToObject(alert, "timestamp", ts) == NULL) {
+
         log_line("Failed to build alert JSON for device %s\n", id);
         cJSON_Delete(alert);
         return;
@@ -83,8 +83,7 @@ static void publish_alert(struct mosquitto *mosq, const char *id,
     cJSON_Delete(alert);
 }
 
-void on_message(struct mosquitto *mosq, void *userdata,
-                const struct mosquitto_message *message)
+void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *message)
 {
     struct device_list *list = userdata;
     cJSON *json;
@@ -154,8 +153,15 @@ void on_message(struct mosquitto *mosq, void *userdata,
         return;
     }
 
+    if (pthread_mutex_lock(&list->mutex) != 0) {
+        log_line("Failed to lock device list\n");
+        cJSON_Delete(json);
+        return;
+    }
+
     struct device *pridetas_device = find_or_add_device(list, id);
     if (pridetas_device == NULL) {
+        pthread_mutex_unlock(&list->mutex);
         log_line("Failed to store telemetry for device %s\n", id);
         cJSON_Delete(json);
         return;
@@ -165,6 +171,7 @@ void on_message(struct mosquitto *mosq, void *userdata,
     pridetas_device->humidity = hum;
     pridetas_device->battery = bat;
     pridetas_device->timestamp = ts;
+    pthread_mutex_unlock(&list->mutex);
 
     int alert_printed = 0;
     if (temp > 30.0) {
