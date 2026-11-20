@@ -57,10 +57,26 @@ Build with `make`, then start the C application:
 ./iot_monitor
 ```
 
-Custom broker settings:
+The C application connects to `localhost` on port `1883` by default. You can override the broker and logging settings with these command-line options:
+
+| Option | Description | Default |
+| --- | --- | --- |
+| `-H <host>` | MQTT broker hostname or IP address | `localhost` |
+| `-P <port>` | MQTT broker port | `1883` |
+| `-o <file>` | Write application logs to a file | Standard output |
+| `-h` | Display the command-line help message | N/A |
+
+For example, connect to a broker at `192.168.1.10:1883` and save logs to
+`monitor.log`:
 
 ```bash
-./iot_monitor -H localhost -P 1883
+./iot_monitor -H 192.168.1.10 -P 1883 -o monitor.log
+```
+
+To display all available options:
+
+```bash
+./iot_monitor -h
 ```
 
 ## Test MQTT communication
