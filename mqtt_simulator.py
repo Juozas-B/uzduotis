@@ -79,7 +79,7 @@ def main():
                 client.publish(
                     topic,
                     json.dumps(payload),
-                    qos=0
+                    qos=1
                 )
 
                 print(f"Published: {topic} -> {payload}")

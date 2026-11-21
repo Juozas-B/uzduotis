@@ -74,7 +74,7 @@ static void publish_alert(struct mosquitto *mosq, const char *id, const char *al
         return;
     }
 
-    publish_result = mosquitto_publish(mosq, NULL, topic, strlen(alert_str), alert_str, 0, false);
+    publish_result = mosquitto_publish(mosq, NULL, topic, strlen(alert_str), alert_str, 1, false);
     if (publish_result != MOSQ_ERR_SUCCESS) {
         log_line("Failed to publish alert for device %s: %s\n", id, mosquitto_strerror(publish_result));
     }
@@ -222,7 +222,7 @@ void on_connect(struct mosquitto *mosq, void *userdata, int rc)
         int subscribe_result;
 
         log_line("Connected to MQTT broker\n");
-        subscribe_result = mosquitto_subscribe(mosq, NULL, "iot/devices/+/telemetry", 0);
+        subscribe_result = mosquitto_subscribe(mosq, NULL, "iot/devices/+/telemetry", 1);
         if (subscribe_result != MOSQ_ERR_SUCCESS) {
             log_line("Subscription failed: %s\n", mosquitto_strerror(subscribe_result));
             running = 0;
