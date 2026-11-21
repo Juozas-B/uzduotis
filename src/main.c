@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -35,14 +36,50 @@ static int parse_port(const char *text, int *port)
     return 0;
 }
 
+static int parse_double(const char *text, double *value)
+{
+    char *end;
+    double parsed;
+
+    errno = 0;
+    parsed = strtod(text, &end);
+    if (errno != 0 || end == text || *end != '\0' || !isfinite(parsed)) {
+        return -1;
+    }
+
+    *value = parsed;
+    return 0;
+}
+
+static int parse_battery_threshold(const char *text, int *value)
+{
+    char *end;
+    long parsed;
+
+    errno = 0;
+    parsed = strtol(text, &end, 10);
+    if (errno != 0 || end == text || *end != '\0' ||
+        parsed < 0 || parsed > 100 || parsed > INT_MAX) {
+        return -1;
+    }
+
+    *value = (int)parsed;
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     char *host = "localhost";
     int port = 1883;
     char *logfile = NULL;
+    struct alert_thresholds thresholds = {
+        .max_temperature = 30.0,
+        .max_humidity = 80.0,
+        .min_battery = 20
+    };
     int opt;
 
-    while ((opt = getopt(argc, argv, "H:P:o:h")) != -1) {
+    while ((opt = getopt(argc, argv, "H:P:o:t:u:b:h")) != -1) {
         switch (opt) {
         case 'H':
             host = optarg;
@@ -56,15 +93,40 @@ int main(int argc, char *argv[])
         case 'o':
             logfile = optarg;
             break;
+        case 't':
+            if (parse_double(optarg, &thresholds.max_temperature) != 0 ||
+                thresholds.max_temperature < -273.15 ||
+                thresholds.max_temperature > 1000.0) {
+                fprintf(stderr, "Invalid temperature threshold: %s\n", optarg);
+                return 1;
+            }
+            break;
+        case 'u':
+            if (parse_double(optarg, &thresholds.max_humidity) != 0 ||
+                thresholds.max_humidity < 0.0 ||
+                thresholds.max_humidity > 100.0) {
+                fprintf(stderr, "Invalid humidity threshold: %s\n", optarg);
+                return 1;
+            }
+            break;
+        case 'b':
+            if (parse_battery_threshold(optarg, &thresholds.min_battery) != 0) {
+                fprintf(stderr, "Invalid battery threshold: %s\n", optarg);
+                return 1;
+            }
+            break;
         case 'h':
-            printf("Usage: %s [-H host] [-P port] [-o logfile]\n", argv[0]);
+            printf("Usage: %s [-H host] [-P port] [-o logfile] [-t temperature] [-u humidity] [-b battery]\n", argv[0]);
             printf("  -H  MQTT broker host (default: localhost)\n");
             printf("  -P  MQTT broker port (default: 1883)\n");
             printf("  -o  Log file (default: stdout)\n");
+            printf("  -t  High-temperature threshold in C (default: 30.0)\n");
+            printf("  -u  High-humidity threshold in percent (default: 80.0)\n");
+            printf("  -b  Low-battery threshold in percent (default: 20)\n");
             printf("  -h  Show this help\n");
             return 0;
         default:
-            fprintf(stderr, "Usage: %s [-H host] [-P port] [-o file]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [-H host] [-P port] [-o file] [-t temperature] [-u humidity] [-b battery]\n", argv[0]);
             return 1;
         }
     }
@@ -92,7 +154,12 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    struct mosquitto *mosq = mosquitto_new("iot_monitor", true, &device_list);
+    struct app_context context = {
+        .devices = &device_list,
+        .thresholds = thresholds
+    };
+
+    struct mosquitto *mosq = mosquitto_new("iot_monitor", true, &context);
     if (mosq == NULL) {
         fprintf(stderr, "Failed to create Mosquitto client\n");
         mosquitto_lib_cleanup();
@@ -139,6 +206,8 @@ int main(int argc, char *argv[])
 
         sleep(1);
         now = time(NULL);
+
+        check_stopped_devices(&device_list, 10);
 
         if (now - last_summary >= 10) {
             print_device_summary(&device_list);

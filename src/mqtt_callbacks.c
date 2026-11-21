@@ -85,7 +85,8 @@ static void publish_alert(struct mosquitto *mosq, const char *id, const char *al
 
 void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *message)
 {
-    struct device_list *list = userdata;
+    struct app_context *context = userdata;
+    struct device_list *list = context->devices;
     cJSON *json;
     double battery_value;
     double timestamp_value;
@@ -167,25 +168,32 @@ void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_m
         return;
     }
 
+    int was_inactive = pridetas_device->inactive;
+
     pridetas_device->temperature = temp;
     pridetas_device->humidity = hum;
     pridetas_device->battery = bat;
     pridetas_device->timestamp = ts;
     pridetas_device->last_received = time(NULL);
+    pridetas_device->inactive = 0;
     pthread_mutex_unlock(&list->mutex);
 
+    if (was_inactive) {
+        log_line("Device %s telemetry recovered\n", id);
+    }
+
     int alert_printed = 0;
-    if (temp > 30.0) {
+    if (temp > context->thresholds.max_temperature) {
         log_line("WARNING: HIGH_TEMPERATURE for device %s: %.2f°C\n", id, temp);
         publish_alert(mosq, id, "HIGH_TEMPERATURE", temp, ts);
         alert_printed++;
     }
-    if (hum > 80.0) {
+    if (hum > context->thresholds.max_humidity) {
         log_line("WARNING: HIGH_HUMIDITY for device %s: %.2f%%\n", id, hum);
         publish_alert(mosq, id, "HIGH_HUMIDITY", hum, ts);
         alert_printed++;
     }
-    if (bat < 20) {
+    if (bat < context->thresholds.min_battery) {
         log_line("WARNING: LOW_BATTERY for device %s: %d%%\n", id, bat);
         publish_alert(mosq, id, "LOW_BATTERY", bat, ts);
         alert_printed++;

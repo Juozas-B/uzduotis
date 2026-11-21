@@ -11,6 +11,7 @@ struct device {
     int battery;
     long timestamp;
     time_t last_received;
+    int inactive;
 };
 
 struct device_list {
@@ -22,5 +23,6 @@ struct device_list {
 
 struct device *find_or_add_device(struct device_list *list, const char *device_id);
 void print_device_summary(struct device_list *list);
+void check_stopped_devices(struct device_list *list, time_t timeout);
 
 #endif

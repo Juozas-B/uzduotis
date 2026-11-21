@@ -97,6 +97,9 @@ The C application connects to `localhost` on port `1883` by default. You can ove
 | `-H <host>` | MQTT broker hostname or IP address | `localhost` |
 | `-P <port>` | MQTT broker port | `1883` |
 | `-o <file>` | Write application logs to a file | Standard output |
+| `-t <temperature>` | High-temperature alert threshold in degrees C | `30.0` |
+| `-u <humidity>` | High-humidity alert threshold in percent | `80.0` |
+| `-b <battery>` | Low-battery alert threshold in percent | `20` |
 | `-h` | Display the command-line help message | N/A |
 
 For example, connect to a broker at `192.168.1.10:1883` and save logs to
@@ -104,6 +107,12 @@ For example, connect to a broker at `192.168.1.10:1883` and save logs to
 
 ```bash
 ./iot_monitor -H 192.168.1.10 -P 1883 -o monitor.log
+```
+
+To use custom alert thresholds:
+
+```bash
+./iot_monitor -t 35 -u 85 -b 15
 ```
 
 To display all available options:
@@ -401,5 +410,4 @@ Disconnected: No error.
 
 - The application uses an unauthenticated local Mosquitto broker by default.
 - Broker credentials and TLS settings are not configurable through the CLI.
-- Alert thresholds are fixed: temperature above 30 °C, humidity above 80%, and battery below 20%.
 - Device telemetry is stored in memory and is not persisted between runs.
