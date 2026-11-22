@@ -1,0 +1,13 @@
+[Unit]
+Description=MQTT IoT Device Monitor
+After=network-online.target mosquitto.service 
+Wants=network-online.target mosquitto.service 
+
+[Service]
+ExecStart=/absolute/path/to/uzduotis/iot_monitor -H localhost -P 1883 -o logs/monitor.log
+WorkingDirectory=/absolute/path/to/uzduotis
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

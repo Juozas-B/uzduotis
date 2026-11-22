@@ -39,6 +39,17 @@ Clean build artifacts:
 make clean
 ```
 
+## Running the unit tests
+
+Run the parser tests with:
+
+```bash
+make test
+```
+
+This tests valid telemetry, malformed JSON, missing fields, invalid types,
+invalid device IDs, and invalid sensor values.
+
 ## Running the Python simulator
 
 Create and activate the Python virtual environment:
@@ -120,6 +131,30 @@ To display all available options:
 ```bash
 ./iot_monitor -h
 ```
+
+## Running as a systemd service
+
+The project includes a systemd service that starts `iot_monitor`
+automatically and restarts it if it fails.
+
+In `systemd/iot_monitor.service`, replace `/absolute/path/to/uzduotis`
+with the absolute path to this project directory.
+
+Install and start it with:
+
+```bash
+sudo cp systemd/iot_monitor.service /etc/systemd/system/iot_monitor.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now iot_monitor
+```
+
+Check the service status with:
+
+```bash
+systemctl status iot_monitor
+```
+
+Application logs are written to `logs/monitor.log`.
 
 ## Test MQTT communication
 

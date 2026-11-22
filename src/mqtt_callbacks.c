@@ -2,6 +2,7 @@
 
 #include "device_store.h"
 #include "logger.h"
+#include "telemetry_parser.h"
 
 #include <cjson/cJSON.h>
 #include <math.h>
@@ -10,31 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-static int is_valid_device_id(const char *id)
-{
-    size_t length;
-
-    if (id == NULL || id[0] == '\0') {
-        return 0;
-    }
-
-    length = strlen(id);
-    if (length >= sizeof(((struct device *)0)->device_id)) {
-        return 0;
-    }
-
-    for (size_t i = 0; i < length; i++) {
-        char c = id[i];
-
-        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-              (c >= '0' && c <= '9') || c == '_' || c == '-')) {
-            return 0;
-        }
-    }
-
-    return 1;
-}
 
 static void publish_alert(struct mosquitto *mosq, const char *id, const char *alert_name, double value, long ts)
 {
@@ -87,76 +63,51 @@ void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_m
 {
     struct app_context *context = userdata;
     struct device_list *list = context->devices;
-    cJSON *json;
-    double battery_value;
-    double timestamp_value;
+    struct telemetry parsed;
 
     if (message == NULL || message->payload == NULL || message->payloadlen < 0) {
         log_line("Invalid MQTT message\n");
         return;
     }
 
-    json = cJSON_ParseWithLengthOpts(message->payload, (size_t)message->payloadlen, NULL, 0);
-
-    if (json == NULL) {
-        log_line("Invalid JSON\n");
+    enum telemetry_result result = parse_telemetry(message->payload, (size_t)message->payloadlen, &parsed);
+    if (result != TELEMETRY_OK) {
+        switch (result) {
+        case TELEMETRY_INVALID_JSON:
+            log_line("Invalid JSON\n");
+            break;
+        case TELEMETRY_MISSING_FIELD:
+            log_line("Missing required JSON fields\n");
+            break;
+        case TELEMETRY_INVALID_TYPE:
+            log_line("Invalid JSON field types\n");
+            break;
+        case TELEMETRY_INVALID_ID:
+            log_line("Invalid device ID\n");
+            break;
+        case TELEMETRY_INVALID_VALUE:
+            log_line("Invalid telemetry values\n");
+            break;
+        case TELEMETRY_OK:
+            break;
+        }
         return;
     }
 
-    cJSON *device_id = cJSON_GetObjectItem(json, "device_id");
-    cJSON *temperature = cJSON_GetObjectItem(json, "temperature");
-    cJSON *humidity = cJSON_GetObjectItem(json, "humidity");
-    cJSON *battery = cJSON_GetObjectItem(json, "battery");
-    cJSON *timestamp = cJSON_GetObjectItem(json, "timestamp");
-
-    if (!device_id || !temperature || !humidity || !battery || !timestamp) {
-        log_line("Missing required JSON fields\n");
-        cJSON_Delete(json);
-        return;
-    }
-
-    if (!cJSON_IsString(device_id) || !cJSON_IsNumber(temperature) ||
-        !cJSON_IsNumber(humidity) || !cJSON_IsNumber(battery) || !cJSON_IsNumber(timestamp)) {
-        log_line("Invalid JSON field types\n");
-        cJSON_Delete(json);
-        return;
-    }
-
-    char *id = device_id->valuestring;
-    if (!is_valid_device_id(id)) {
-        log_line("Invalid device ID: %s\n", id);
-        cJSON_Delete(json);
-        return;
-    }
-
-    double temp = temperature->valuedouble;
-    double hum = humidity->valuedouble;
-    battery_value = battery->valuedouble;
-    timestamp_value = timestamp->valuedouble;
-
-    if (!isfinite(temp) || !isfinite(hum) || hum < 0.0 || hum > 100.0 ||
-        !isfinite(battery_value) || battery_value < 0.0 || battery_value > 100.0 ||
-        floor(battery_value) != battery_value || !isfinite(timestamp_value) ||
-        timestamp_value < 0.0 || timestamp_value >= (double)LONG_MAX ||
-        floor(timestamp_value) != timestamp_value) {
-        log_line("Invalid telemetry values for device %s\n", id);
-        cJSON_Delete(json);
-        return;
-    }
-
-    int bat = (int)battery_value;
-    long ts = (long)timestamp_value;
-    struct tm *laikas = localtime(&ts);
-
+    const char *id = parsed.device_id;
+    double temp = parsed.temperature;
+    double hum = parsed.humidity;
+    int bat = parsed.battery;
+    long ts = parsed.timestamp;
+    time_t display_ts = (time_t)ts;
+    struct tm *laikas = localtime(&display_ts);
     if (laikas == NULL) {
         log_line("Invalid timestamp for device %s: %ld\n", id, ts);
-        cJSON_Delete(json);
         return;
     }
 
     if (pthread_mutex_lock(&list->mutex) != 0) {
         log_line("Failed to lock device list\n");
-        cJSON_Delete(json);
         return;
     }
 
@@ -164,7 +115,6 @@ void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_m
     if (pridetas_device == NULL) {
         pthread_mutex_unlock(&list->mutex);
         log_line("Failed to store telemetry for device %s\n", id);
-        cJSON_Delete(json);
         return;
     }
 
@@ -211,7 +161,6 @@ void on_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_m
              "Humidity:", hum,
              "Battery:", bat);
 
-    cJSON_Delete(json);
 }
 
 void on_connect(struct mosquitto *mosq, void *userdata, int rc)
